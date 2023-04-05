@@ -29,8 +29,7 @@ class BiddingStrategy:
     def _generate_own_similar_bids(self, sorted_bids):
         "Gather more opportunities as time passes by"
         similar_bids = []
-        progress = self._progress.get(time() * 1000)
-        n = int(round(progress * 0.001))
+        n = 5
         i = 0
         for bid in sorted_bids:
             if (self._threshold + self._delta) > bid["utility"] > (self._threshold - self._delta):
@@ -74,7 +73,7 @@ class BiddingStrategy:
         best_bid = bids[0]
         max_util = 0
         for bid in bids :
-            opponent_util = self._opponent_model.getUtility(bid)
+            opponent_util = self._opponent_model.get_predicted_utility(bid)
             if opponent_util > max_util:
                 best_bid = bid
                 max_util = opponent_util

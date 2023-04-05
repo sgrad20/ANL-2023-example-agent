@@ -30,7 +30,7 @@ class TradeOff:
         bids = []
         i = 0
         for bid in self._sorted_bids:
-            if self._offer + self._tolerance > bid["utility"] > self._offer - self._tolerance:
+            if (self._offer + self._tolerance) > bid["utility"] > (self._offer - self._tolerance):
                 bids.append(bid["bid"])
                 i += 1
             if i == n:
