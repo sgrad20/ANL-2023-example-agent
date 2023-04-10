@@ -17,10 +17,50 @@ if not RESULTS_DIR.exists():
 #   You need to specify a time deadline (is milliseconds (ms)) we are allowed to negotiate before we end without agreement
 settings = {
     "agents": [
+        # {
+        #     "class": "agents.template_agent.template_agent.TemplateAgent",
+        #     "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
+        # },
         {
-            "class": "agents.ANL2022.dreamteam109_agent.dreamteam109_agent.DreamTeam109Agent",
-            "parameters": {"storage_dir": "agent_storage/DreamTeam109Agent"},
+            "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
+            "parameters": {"storage_dir": "agent_storage/BoulwareAgent"},
         },
+        # {
+        #     "class": "agents.conceder_agent.conceder_agent.ConcederAgent",
+        #     "parameters": {"storage_dir": "agent_storage/ConcederAgent"},
+        # },
+        # {
+        #     "class": "agents.ANL2022.dreamteam109_agent.dreamteam109_agent.DreamTeam109Agent",
+        #     "parameters": {"storage_dir": "agent_storage/DreamTeam109Agent"},
+        # },
+        # {
+        #     "class": "agents.hardliner_agent.hardliner_agent.HardlinerAgent",
+        #     "parameters": {"storage_dir": "agent_storage/HardlinerAgent"},
+        # },
+        # {
+        #     "class": "agents.ANL2022.learning_agent.learning_agent.LearningAgent",
+        #     "parameters": {"storage_dir": "agent_storage/LearningAgent"},
+        # },
+        # {
+        #     "class": "agents.linear_agent.linear_agent.LinearAgent",
+        #     "parameters": {"storage_dir": "agent_storage/LinearAgent"},
+        # },
+        # {
+        #     "class": "agents.random_agent.random_agent.RandomAgent",
+        #     "parameters": {"storage_dir": "agent_storage/RandomAgent"},
+        # },
+        # {
+        #     "class": "agents.ANL2022.smart_agent.smart_agent.SmartAgent",
+        #     "parameters": {"storage_dir": "agent_storage/SmartAgent"},
+        # },
+        # {
+        #     "class": "agents.stupid_agent.stupid_agent.StupidAgent",
+        #     "parameters": {"storage_dir": "agent_storage/StupidAgent"},
+        # },
+        # {
+        #     "class": "agents.time_dependent_agent.time_dependent_agent.TimeDependentAgent",
+        #     "parameters": {"storage_dir": "agent_storage/TimeDependentAgent"},
+        # },
         {
             "class": "agents.template_agent.template_agent.TemplateAgent",
             "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
