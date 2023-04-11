@@ -187,74 +187,20 @@ class Group16Agent(DefaultParty):
         with open(f"{self.storage_dir}/data.md", "w") as f:
             f.write(data)
 
-    ###########################################################################################
-    ######################################## BOA model ########################################
-    ###########################################################################################
-
     def accept_condition(self, bid: Bid) -> bool:
-        """
-        This method implements the accepting strategy for our agent. We follow a model that exists of different phases.
-        We included the following phases:
-            1. Strictly exploring   0s - 1s     During this phase we do not accept any offer. Since heuristics tell us
-                                                that most agents will not offer their best bids in the beginning. This
-                                                also allows for building a better opponent model and bidding strategy
-                                                that do not suffer from a cold start problem.
-            2. Regular              1s - 9s     During this phase we accept bids that have a higher utility than the
-                                                one we were about to offer.
-            3. Eager                9s - 9.5s   Time is running out, so this strategy will accept any bid that is higher
-                                                or equal to highest previously received bid.
-            4. Desperate            9.5s - 10s  This is the last phase, and now it is really time to accept, so this
-                                                strategy will accept anything. If we do not accept any offer the utility
-                                                would be 0, so it is always better to accept.
-
-        @param bid: The last bid offered by the opponent.
-        @return:    A boolean indicating whether to accept or decline this offer.
-        """
         if bid is None:
             return False
 
-        # Progress of the negotiation session between 0 and 1 (1 is deadline).
+        # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
 
-        # PHASE 1: STRICTLY EXPLORING
-        # Never accept any offer during the first second.
-        if progress < 0.1:
-            return False
-
-        # PHASE 2: REGULAR
-        # Calculate the utility of the current bid.
-        utility = self.profile.getUtility(bid)
-
-        # Determine the minimum acceptable utility based on the progress of the negotiation.
-        min_utility = 1.0 - (progress / 3.0)
-
-        # Exploratory TFT and Similarity-Based TFT
-        # AC const(a)(b) = accept iff u(b) >= a
-        if utility >= min_utility:
-            return True
-
-        # If the utility gap between the received offer, and the proposed offer is smaller than 0.02, then the offer
-        # should be accepted in 50 percent of the cases.
-        if min_utility - float(utility) <= 0.02:
-            return random.uniform(0, 1) < 0.5
-
-        # PHASE 3: EAGER
-        best_offer = max([self.profile.getUtility(bid) for bid in self.received_bids])
-        # # If the bid is at least as good as the avg offered so far, accept it.
-        if progress >= 0.90 and self.profile.getUtility(bid) >= best_offer:
-            return True
-
-        # Desperate
-        # Check if the time remaining is less than the ACtime(T) threshold.
-        # ACtime(T) is the fail safe mechanism: an agent may decide its better to have any deal
-        if progress >= 0.95 and utility >= self.reservation_value:
-            return True
-
-        if progress >= 0.98:
-            return True
-        # Other se, reject the bid.
-        else:
-            return False
+        # very basic approach that accepts if the offer is valued above 0.7 and
+        # 95% of the time towards the deadline has passed
+        conditions = [
+            self.profile.getUtility(bid) > 0.8,
+            progress > 0.95,
+        ]
+        return all(conditions)
 
     def find_bid(self) -> Bid:
         # stuck with the algorithm - make concession
@@ -329,13 +275,14 @@ class Group16Agent(DefaultParty):
 
             if sent_change > 0 and received_change < 0:
                 if abs(received_change) > abs(sent_change):
-                    concession = float (self.progress.get(time() * 1000))  * float (abs(received_change) / abs(sent_change))
+                    concession = float(self.progress.get(time() * 1000)) * float(
+                        abs(received_change) / abs(sent_change))
                 else:
-                    concession = float (self.progress.get(time() * 1000) * 0.005)
+                    concession = float(self.progress.get(time() * 1000) * 0.005)
             else:
                 concession = self.progress.get(time() * 1000) * 0.005
 
-            self.threshold = float(self.threshold) - float(concession)   # convert decimal to float before subtracting
+            self.threshold = float(self.threshold) - float(concession)  # convert decimal to float before subtracting
 
     def sort_bids(self):
         all_bids = AllBidsList(self.profile.getDomain())
