@@ -53,7 +53,6 @@ class Group16Agent(DefaultParty):
         self.received_bids = []
         self.sent_bids = []
         self.window_size = 25
-        self.reservation_value = 0.3
 
     def notifyChange(self, data: Inform):
         """
