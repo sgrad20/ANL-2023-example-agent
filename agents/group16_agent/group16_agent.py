@@ -1,5 +1,5 @@
 import logging
-import random
+from random import randint
 from time import time
 from typing import cast
 
@@ -52,9 +52,9 @@ class Group16Agent(DefaultParty):
         self.logger.log(logging.INFO, "party is initialized")
         self.received_bids = []
         self.sent_bids = []
-        self.reservation_value = 0.3
         self.threshold = 0.95
         self.delta = 0.05
+        self.window_size = 25
 
     def notifyChange(self, data: Inform):
         """
@@ -166,12 +166,13 @@ class Group16Agent(DefaultParty):
         to perform and send this action to the opponent.
         """
         # check if the last received offer is good enough
-        if self.accept_condition(self.last_received_bid):
+        bid = self.find_bid()
+
+        if self.accept_condition(self.last_received_bid, bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
             self.sent_bids.append(bid)
             action = Offer(self.me, bid)
 
@@ -187,48 +188,83 @@ class Group16Agent(DefaultParty):
         with open(f"{self.storage_dir}/data.md", "w") as f:
             f.write(data)
 
-    def accept_condition(self, bid: Bid) -> bool:
+    ###########################################################################################
+    ######################################## BOA model ########################################
+    ###########################################################################################
+
+    def accept_condition(self, bid: Bid, next_bid: Bid) -> bool:
+        """
+        This method implements the accepting strategy for our agent. We follow a model that exists of different phases.
+        We included the following phases:
+            1. Strictly exploring   0s - 1s     During this phase we do not accept any offer. Since heuristics tell us
+                                                that most agents will not offer their best bids in the beginning. This
+                                                also allows for building a better opponent model and bidding strategy
+                                                that do not suffer from a cold start problem.
+            2. Regular              1s - 9s     During this phase we accept bids that have a higher utility than the
+                                                one we were about to offer.
+            3. Eager                9s - 9.5s   Time is running out, so this strategy will accept any bid that is higher
+                                                or equal to highest previously received bid within a set window.
+            4. Desperate            9.5s - 10s  This is the last phase, and now it is really time to accept, so this
+                                                strategy will accept anything higher than the time dependent reservation
+                                                value. If we do not accept any offer the utility would be 0, so it is
+                                                always better to accept.
+        @param bid:         The last bid offered by the opponent.
+        @param next_bid:    The bid that will be send in case we do not accept the current offer.
+        @return:            A boolean indicating whether to accept or decline this offer.
+        """
         if bid is None:
             return False
 
-        # progress of the negotiation session between 0 and 1 (1 is deadline)
+        # Progress of the negotiation session between 0 and 1 (1 is deadline).
         progress = self.progress.get(time() * 1000)
 
-        # very basic approach that accepts if the offer is valued above 0.7 and
-        # 95% of the time towards the deadline has passed
-        conditions = [
-            self.profile.getUtility(bid) > 0.8,
-            progress > 0.95,
-        ]
-        return all(conditions)
+        # Calculate the utility of the current bid and that of the next bid to be offered in case we do not accept.
+        utility = self.profile.getUtility(bid)
+        utility_next_bid = self.profile.getUtility(next_bid)
+
+        # PHASE 1: STRICTLY EXPLORING
+        # Never accept any offer during the first second.
+        if progress < 0.1:
+            return False
+
+        # PHASE 2: REGULAR
+        elif progress < 0.9:
+            # Accept bid if it has a higher utility than the one we were about to offer
+            if utility > utility_next_bid:
+                return True
+
+        # PHASE 3: EAGER
+        elif progress < 0.95:
+            window = len(self.received_bids) - 10
+            best_offer = max([self.profile.getUtility(bid) for bid in self.received_bids[window:]])
+            # # If the bid is at least as good as the max offered in the current window, accept it.
+            if self.profile.getUtility(bid) >= best_offer:
+                return True
+
+        # PHASE 4: DESPERATE
+        else:
+            # Acts as a time dependent reservation value, during the last 0.5 seconds
+            min_utility = (1 - progress) * 10
+
+            if utility >= min_utility:
+                return True
+            else:
+                return False
 
     def find_bid(self) -> Bid:
-        # stuck with the algorithm - make concession
-        self.make_concession()
+        # compose a list of all possible bids
+        domain = self.profile.getDomain()
+        all_bids = AllBidsList(domain)
 
-        # generate set of bids that maximise own utility
-        sorted_bids = self.sort_bids()
-        bids = self.generate_own_similar_bids(sorted_bids)
+        best_bid_score = 0.0
+        best_bid = None
 
-        # no opponent bid made so far -> we start negotiation
-        if self.last_received_bid is None:
-            if len(bids) > 0:
-                return bids[0]
-            else:
-                return self.get_random_bid()
-
-        # no bids found to maximise own utility
-        if len(bids) == 0:
-            return self.get_random_bid()
-
-        # find bid that maximises opponent utility from our own selected bids
-        best_bid = bids[0]
-        max_util = 0
-        for bid in bids :
-            opponent_util = self.opponent_model.get_predicted_utility(bid)
-            if opponent_util > max_util:
-                best_bid = bid
-                max_util = opponent_util
+        # take 500 attempts to find a bid according to a heuristic score
+        for _ in range(500):
+            bid = all_bids.get(randint(0, all_bids.size() - 1))
+            bid_score = self.score_bid(bid)
+            if bid_score > best_bid_score:
+                best_bid_score, best_bid = bid_score, bid
 
         return best_bid
 
@@ -307,4 +343,4 @@ class Group16Agent(DefaultParty):
 
     def get_random_bid(self):
         all_bids = AllBidsList(self.profile.getDomain())
-        return all_bids.get(random.randint(0, all_bids.size() - 1))
+        return all_bids.get(randint(0, all_bids.size() - 1))
