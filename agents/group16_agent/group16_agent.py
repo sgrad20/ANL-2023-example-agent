@@ -52,6 +52,8 @@ class Group16Agent(DefaultParty):
         self.logger.log(logging.INFO, "party is initialized")
         self.received_bids = []
         self.sent_bids = []
+        self.threshold = 0.95
+        self.delta = 0.05
         self.window_size = 25
 
     def notifyChange(self, data: Inform):
@@ -206,7 +208,6 @@ class Group16Agent(DefaultParty):
                                                 strategy will accept anything higher than the time dependent reservation
                                                 value. If we do not accept any offer the utility would be 0, so it is
                                                 always better to accept.
-
         @param bid:         The last bid offered by the opponent.
         @param next_bid:    The bid that will be send in case we do not accept the current offer.
         @return:            A boolean indicating whether to accept or decline this offer.
@@ -293,3 +294,53 @@ class Group16Agent(DefaultParty):
             score += opponent_score
 
         return score
+
+    ###########################################################################################
+    ######################### Functions used by the bidding strategy ##########################
+    ###########################################################################################
+    def make_concession(self):
+        if len(self.sent_bids) > 1:
+            sent_utility_1 = self.profile.getUtility(self.sent_bids[-1])
+            received_utility_1 = self.profile.getUtility(self.received_bids[-1])
+
+            sent_utility_2 = self.profile.getUtility(self.sent_bids[-2])
+            received_utility_2 = self.profile.getUtility(self.received_bids[-2])
+
+            sent_change = sent_utility_1 - sent_utility_2
+            received_change = received_utility_1 - received_utility_2
+
+            if sent_change > 0 and received_change < 0:
+                if abs(received_change) > abs(sent_change):
+                    concession = float(self.progress.get(time() * 1000)) * float(
+                        abs(received_change) / abs(sent_change))
+                else:
+                    concession = float(self.progress.get(time() * 1000) * 0.005)
+            else:
+                concession = self.progress.get(time() * 1000) * 0.005
+
+            self.threshold = float(self.threshold) - float(concession)  # convert decimal to float before subtracting
+
+    def sort_bids(self):
+        all_bids = AllBidsList(self.profile.getDomain())
+        bids = []
+        for b in all_bids:
+            bid = {"bid": b, "utility": self.profile.getUtility(b)}
+            bids.append(bid)
+        return sorted(bids, key=lambda d: d['utility'], reverse=True)
+
+    def generate_own_similar_bids(self, sorted_bids):
+        "Gather more opportunities as time passes by"
+        similar_bids = []
+        n = 5
+        i = 0
+        for bid in sorted_bids:
+            if (self.threshold + self.delta) > bid["utility"] > (self.threshold - self.delta):
+                similar_bids.append(bid["bid"])
+                i += 1
+            if i == n:
+                break
+        return similar_bids
+
+    def get_random_bid(self):
+        all_bids = AllBidsList(self.profile.getDomain())
+        return all_bids.get(randint(0, all_bids.size() - 1))
