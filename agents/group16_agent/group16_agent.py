@@ -1,5 +1,5 @@
 import logging
-from random import randint
+from random import randint, random
 from time import time
 from typing import cast
 
@@ -252,19 +252,32 @@ class Group16Agent(DefaultParty):
                 return False
 
     def find_bid(self) -> Bid:
-        # compose a list of all possible bids
-        domain = self.profile.getDomain()
-        all_bids = AllBidsList(domain)
+        # stuck with the algorithm - make concession
+        self.make_concession()
 
-        best_bid_score = 0.0
-        best_bid = None
+        # generate set of bids that maximise own utility
+        sorted_bids = self.sort_bids()
+        bids = self.generate_own_similar_bids(sorted_bids)
 
-        # take 500 attempts to find a bid according to a heuristic score
-        for _ in range(500):
-            bid = all_bids.get(randint(0, all_bids.size() - 1))
-            bid_score = self.score_bid(bid)
-            if bid_score > best_bid_score:
-                best_bid_score, best_bid = bid_score, bid
+        # no opponent bid made so far -> we start negotiation
+        if self.last_received_bid is None:
+            if len(bids) > 0:
+                return bids[0]
+            else:
+                return self.get_random_bid()
+
+        # no bids found to maximise own utility
+        if len(bids) == 0:
+            return self.get_random_bid()
+
+        # find bid that maximises opponent utility from our own selected bids
+        best_bid = bids[0]
+        max_util = 0
+        for bid in bids:
+            opponent_util = self.opponent_model.get_predicted_utility(bid)
+            if opponent_util > max_util:
+                best_bid = bid
+                max_util = opponent_util
 
         return best_bid
 
@@ -295,9 +308,10 @@ class Group16Agent(DefaultParty):
 
         return score
 
-    ###########################################################################################
-    ######################### Functions used by the bidding strategy ##########################
-    ###########################################################################################
+        ###########################################################################################
+        ######################### Functions used by the bidding strategy ##########################
+        ###########################################################################################
+
     def make_concession(self):
         if len(self.sent_bids) > 1:
             sent_utility_1 = self.profile.getUtility(self.sent_bids[-1])
@@ -343,4 +357,4 @@ class Group16Agent(DefaultParty):
 
     def get_random_bid(self):
         all_bids = AllBidsList(self.profile.getDomain())
-        return all_bids.get(randint(0, all_bids.size() - 1))
+        return all_bids.get(random.randint(0, all_bids.size() - 1))
